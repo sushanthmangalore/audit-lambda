@@ -28,7 +28,7 @@ Resources:
       CodeUri: audit_lambda/
       Handler: app.lambda_handler
       Runtime: python3.9
-      Role: !Ref AuditReadOnlyRoles
+      Role: !Ref AuditReadOnlyRole
       Architectures:
         - arm64
       Events:

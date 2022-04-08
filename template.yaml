@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  audit-lambda
+
+  Sample SAM Template for audit-lambda
+
+Globals:
+  Function:
+    Timeout: 30
+
+Parameters:
+  ExistingBucketName:
+    Type: String
+  ProdAccount:
+    Type: String
+  DevAccount:
+    Type: String
+  AuditReadOnlyRole:
+    Type: String
+    Default: arn:aws:iam::123456789012:role/aws-controltower-AuditReadOnlyRole
+
+
+Resources:
+  AuditLambdaFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: audit_lambda/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Role: !Ref AuditReadOnlyRoles
+      Architectures:
+        - arm64
+      Events:
+        AuditApi:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /audit
+            Method: get
+      Environment:
+        Variables:
+          DEV_ACCOUNT: !Ref DevAccount
+          PROD_ACCOUNT: !Ref ProdAccount
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: EventRule
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.s3
+        detail:
+          eventName:
+            - PutObject
+          requestParameters:
+            bucketName:
+              - !Ref ExistingBucketName
+      Targets:
+        - Arn: !GetAtt AuditLambdaFunction.Arn
+          Id: EventConsumerFunctionTarget
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AuditLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EventRule.Arn
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  AuditLambdsApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/audit/"
+  AuditLambdaFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt AuditLambdaFunction.Arn
